@@ -22,15 +22,21 @@ Every pod you publish feeds that loop. You earn REPPO rewards for quality contri
 
 ---
 
-## Why this exists
+## How it works
 
-TradingGym AI is a shared corpus of real autonomous trading behavior — entries, exits, near-misses, market scans, and strategy refinements. It's what trains better AI trading models.
+```
+Your Bot ──► PodLogger ──► trades.jsonl ──► build_pod.py ──► Pod A (Execution)
+                │           signals.jsonl ──►                ──► Pod B (Signals)
+                └── 3 calls ─► scans.jsonl  ──►                 │
+                                                                 │
+                                                   Pin to IPFS ◄─┘
+                                                         │
+                                              Submit on Reppo ◄─┘
+                                                         │
+                                              Earn REPPO rewards
+```
 
-Right now, most trading bots generate this data and throw it away.
-
-This format captures it, structures it into verifiable IPFS pods, and submits it to the TradingGym AI subnet on Reppo — where you earn rewards for quality contributions.
-
-**Your bot is already generating the data. This format just makes it count.**
+Three logging calls in your bot. One script to build pods. Pin to IPFS and submit.
 
 ---
 
@@ -47,6 +53,58 @@ Your pod earns emissions when it passes quality markets. The better your data, t
 
 ---
 
+## Quick Start (15 minutes)
+
+### 1. Add PodLogger to your bot
+
+Copy [`examples/logger_example.py`](examples/logger_example.py) into your project. Then add 3 logging calls:
+
+```python
+from logger_example import PodLogger
+
+log = PodLogger(agent_name="MyBot", data_dir="./data")
+
+# When you open a trade:
+log.log_open("BTC", 81500.0, 0.001, 5, 8.0, ["RSI oversold", "EMA crossover"])
+
+# When a signal is evaluated but not traded (near-miss):
+log.log_signal("ETH", 2350.0, 4.5, "NONE", ["RSI too high at 68"])
+
+# When you close a trade:
+log.log_close("BTC", 82300.0, 81500.0, 0.001, 0.80, 6.5, "TP_HIT")
+```
+
+That's it. The logger writes flat JSONL files — no database, no config, no cloud service.
+
+### 2. Build pods from your data
+
+```bash
+git clone https://github.com/hottublee-ai/datanet-pod-format
+cd datanet-pod-format
+
+python3 scripts/build_pod.py \
+  --trades /path/to/trades.jsonl \
+  --signals /path/to/signals.jsonl \
+  --scans /path/to/scans.jsonl \
+  --output ./my_pods
+```
+
+### 3. Pin to IPFS (free via Pinata)
+
+```bash
+curl -X POST https://api.pinata.cloud/pinning/pinJSONToIPFS \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -d @./my_pods/pod_a.json
+```
+
+### 4. Submit on Reppo
+
+Go to [reppo.ai](https://reppo.ai) → Publish a Pod → paste your IPFS gateway URL.
+
+**Cost: free. Setup: ~15 minutes.**
+
+---
+
 ## Pod Types
 
 | Pod | Content | Best For |
@@ -60,41 +118,21 @@ T2 data captures your bot's decision boundary — what it *almost* traded and wh
 
 ---
 
-## Quick Start
-
-```bash
-# Clone this repo
-git clone https://github.com/hottublee-ai/datanet-pod-format
-
-# Use the template script to build your own pods
-python3 scripts/build_pod.py --trades trades.jsonl --output my_pod.json
-
-# Pin to IPFS (Pinata, web3.storage, etc.)
-curl -X POST https://api.pinata.cloud/pinning/pinJSONToIPFS \
-  -H "Authorization: Bearer YOUR_JWT" \
-  -d @my_pod.json
-
-# Submit the IPFS gateway URL on Reppo
-```
-
-**Cost: free. Setup: ~15 minutes.**
-
----
-
 ## Spec
 
 Full format specification: [SPEC.md](SPEC.md)
 
+### Examples
+
+- [Pod A — Execution & Learning](examples/pod_a_example.json) — 12 completed trades with performance analytics
+- [Pod B — Signal Intelligence](examples/pod_b_example.json) — Near-misses, blocked entries, and market scans
+- [Logger Example](examples/logger_example.py) — Drop-in Python logger for your bot
+
 ### What you need
 
 - A trading bot (any exchange, any language)
-- A free Pinata account for IPFS pinning
-- A wallet to submit CIDs to TradingGym AI on Reppo
-
-### Examples
-
-- [Pod A — Execution & Learning](examples/pod_a_example.json)
-- [Pod B — Signal Intelligence](examples/pod_b_example.json)
+- A free [Pinata](https://pinata.cloud) account for IPFS pinning
+- A wallet to submit pods to TradingGym AI on Reppo
 
 ### Submitting
 
